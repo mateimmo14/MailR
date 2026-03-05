@@ -111,7 +111,7 @@ def spawn_text(text, title="popup"):
             max_width = len(lines)
     root = tk.Tk()
     root.title(title)
-    lable = tk.Text(root, width=max_width)
+    lable = tk.Text(root, width=max_width if max_width > 700 else 700, height=500)
     lable.insert("1.0", text)
     lable.configure(state="disabled")
 
