@@ -1,4 +1,4 @@
-import imaplib,os,platform,sys
+import imaplib,os,platform,sys,time
 from email.header import decode_header, make_header
 import email,threading,tkinter as tk
 def clear():
@@ -15,7 +15,16 @@ def login():
         mail = imaplib.IMAP4_SSL('imap.gmail.com')
         mail.login(address,password)
     except imaplib.IMAP4.error as e:
-        print(e)
+        clear()
+        if e == b'[AUTHENTICATIONFAILED] Invalid credentials (Failure)':
+            print("Invalid credentials. Please try again.\nHint: If you have 2FA on your email account, go to \033]8;;https://myaccount.google.com/apppasswords\033\\\033[94mhttps://myaccount.google.com/apppasswords\033[0m\033]8;;\033\\ and create a app password and use it here to sign in")
+            time.sleep(2)
+        elif e == "LOGIN command error: BAD [b'Not enough arguments provided 5c2dc8763939e-495dbdb4356mb40785970122']":
+            print("Invalid credentials. Please try again.\nHint: If you have 2FA on your email account, go to \033]8;;https://myaccount.google.com/apppasswords\033\\\033[94mhttps://myaccount.google.com/apppasswords\033[0m\033]8;;\033\\ and create a app password and use it here to sign in")
+            time.sleep(2)
+        else:
+            print("Invalid credentials. Please try again.\nHint: If you have 2FA on your email account, go to \033]8;;https://myaccount.google.com/apppasswords\033\\\033[94mhttps://myaccount.google.com/apppasswords\033[0m\033]8;;\033\\ and create a app password and use it here to sign in")
+            input("Press any key to continue...")
         return login()
 global mail
 def collect(amount):
@@ -39,7 +48,7 @@ def collect(amount):
                     break
         else:
             body = msg.get_payload(decode=True).decode(msg.get_content_charset())
-       #----- de reparat (nu merge decodingu) --------
+
 
         emails.append({
             "Id" : int(email_id),
@@ -79,7 +88,7 @@ def main():
     clear()
     while True:
         clear()
-        decision = int(input("1) View inbox\n2) Send email\n3) View email\n4) Exit\n> "))
+        decision = int(input("1) View inbox\n2) Send email (Unavailable)\n3) View email (Unavailable)\n4) Exit\n> "))
         if decision == 1:
             view_emails()
         if decision == 4:
