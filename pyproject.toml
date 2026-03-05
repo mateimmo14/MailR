@@ -1,0 +1,6 @@
+[project]
+name = "MailR"
+version = "0.1.0"
+description = "A CLI email viewer/sender"
+requires-python = ">=3.14"
+dependencies = []
