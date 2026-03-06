@@ -2,9 +2,11 @@ import imaplib,os,platform,sys,time
 from email.header import decode_header, make_header
 import email,threading,tkinter as tk
 import smtplib
+import inquirer
 from tkinter import scrolledtext
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
 def clear():
     if platform.system() == 'Windows':
         os.system('cls')
@@ -155,15 +157,19 @@ def main():
     login()
     clear()
     while True:
-        clear()
-        decision = int(input("1) View inbox\n2) Send email\n3) View email\n4) Exit\n> "))
-        if decision == 1:
+
+
+        decision = inquirer.prompt([
+                inquirer.List('decision', message="Welcome to MailR! Please select an option from below", choices=["1)View inbox","2)Send email", "3)View email", "4)Exit"])
+            ])['decision']
+        #decision = int(input("1) View inbox\n2) Send email\n3) View email\n4) Exit\n> "))
+        if decision[0] == '1':
             view_emails()
-        if decision == 2:
+        if decision[0] == '2':
             send_mail()
-        if decision == 3:
+        if decision[0] == '3':
             view_email()
-        if decision == 4:
+        if decision[0] == '4':
             clear()
             sys.exit(0)
         clear()
