@@ -35,3 +35,5 @@ git clone https://github.com/mateimmo14/mailr.git
 cd mailr
 uv run main.py
 ```
+##  To come in further releases
+- Email rendering with pywebview
