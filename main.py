@@ -1,12 +1,14 @@
 import imaplib,os,platform,sys,time
 from email.header import decode_header, make_header
-import email,threading,tkinter as tk
+import email,threading,tkinter
 import smtplib
 import inquirer
+import ttkthemes,tkinter as tk
 from tkinter import scrolledtext
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+import getpass
 def clear():
     if platform.system() == 'Windows':
         os.system('cls')
@@ -16,7 +18,7 @@ def login():
     global mail,address,password
     clear()
     address = input("Please enter your email address:\n> ")
-    password = input("Please enter your password:\n> ")
+    password = getpass.getpass("Please enter your password:\n> ")
     try:
         mail = imaplib.IMAP4_SSL('imap.gmail.com')
 
@@ -72,46 +74,58 @@ def collect(amount):
 
 def send_mail():
     try:
-        global address,password
+        global address,password,cancelled
         clear()
         msg = MIMEMultipart()
-        msg["Subject"] = input("Subject: ")
-        msg["From"] = address
-        msg["To"] = input("To: ")
+        subject = input("Subject: ")
+        fr = address
+        to = input("To: ")
         clear()
         #-----enter text window----
 
-        widget = tk.Tk()
+        cancelled = False
+
+        widget = ttkthemes.ThemedTk(theme="equilux")
         widget.geometry("700x500")
         widget.title("Mail content")
         text = tk.scrolledtext.ScrolledText(widget)
-
+        def rais():
+            global cancelled
+            clear()
+            widget.destroy()
+            input("Process aborted\nPress any key to continue...")
+            cancelled=True
         def submit():
-
+            msg["Subject"] = subject
+            msg["From"] = fr
+            msg["To"] = to
             msg.attach(MIMEText(text.get("1.0", "end-1c"), "plain"))
             widget.destroy()
 
         submit = tk.Button(widget, command=submit, text="Submit")
+        exi = tk.Button(widget, command=rais, text="Exit", )
         text.pack()
         submit.pack(pady=20)
+        exi.pack(padx=20)
+
         print("Submit the content to continue...")
         widget.mainloop()
+        if not cancelled:
 
-
-        with smtplib.SMTP_SSL('smtp.gmail.com') as server:
-            server.login(address, password)
-            server.sendmail(msg["From"], msg["To"], msg.as_string())
+            with smtplib.SMTP_SSL('smtp.gmail.com') as server:
+                server.login(address, password)
+                server.sendmail(msg["From"], msg["To"], msg.as_string())
         clear()
-    except:
+    except Exception as e:
         clear()
-        input("An error occured\nPress any key to continue...")
+        input(f"{e}\nAn error occured\nPress any key to continue...")
         return
 def spawn_text(text, title="popup"):
     max_width = 0
     for lines in text.split("\n"):
         if max_width < len(lines):
             max_width = len(lines)
-    root = tk.Tk()
+    root = ttkthemes.ThemedTk(theme="equilux")
     root.title(title)
     lable = tk.Text(root, width=max_width if max_width > 700 else 700, height=500)
     lable.insert("1.0", text)

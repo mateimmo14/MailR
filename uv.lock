@@ -92,6 +92,7 @@ dependencies = [
     { name = "inquirer" },
     { name = "pillow" },
     { name = "pyinstaller" },
+    { name = "ttkthemes" },
 ]
 
 [package.metadata]
@@ -99,6 +100,7 @@ requires-dist = [
     { name = "inquirer", specifier = ">=3.4.1" },
     { name = "pillow", specifier = ">=12.1.1" },
     { name = "pyinstaller", specifier = ">=6.19.0" },
+    { name = "ttkthemes", specifier = ">=3.3.0" },
 ]
 
 [[package]]
@@ -231,6 +233,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/82/f3/748f4d6f65d1756b9
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/c6/76dc613121b793286a3f91621d7b75a2b493e0390ddca50f11993eadf192/setuptools-82.0.0-py3-none-any.whl", hash = "sha256:70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0", size = 1003468, upload-time = "2026-02-08T15:08:38.723Z" },
 ]
+
+[[package]]
+name = "ttkthemes"
+version = "3.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pillow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/49/ad/675d46fb613b80c2e0d1b195df1991a76ff42c8b5481d1c5730418945c0b/ttkthemes-3.3.0.tar.gz", hash = "sha256:a0b74087aa3bfa2ef159599376642f288d5c624073c6aaceb4d16359de0851b6", size = 891050, upload-time = "2025-11-09T12:18:10.813Z" }
 
 [[package]]
 name = "wcwidth"
