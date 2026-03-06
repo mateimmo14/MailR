@@ -20,7 +20,7 @@ def login():
     address = input("Please enter your email address:\n> ")
     password = getpass.getpass("Please enter your password:\n> ")
     try:
-        mail = imaplib.IMAP4_SSL('imap.gmail.com')
+        mail = imaplib.IMAP4_SSL(f"imap.{address.split("@")[1]}")
 
 
         mail.login(address,password)
@@ -112,7 +112,7 @@ def send_mail():
         widget.mainloop()
         if not cancelled:
 
-            with smtplib.SMTP_SSL('smtp.gmail.com') as server:
+            with smtplib.SMTP_SSL(f"smtp.{address.split("@")[1]}") as server:
                 server.login(address, password)
                 server.sendmail(msg["From"], msg["To"], msg.as_string())
         clear()
