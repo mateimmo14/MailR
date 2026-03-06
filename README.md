@@ -29,10 +29,9 @@
 ### Option 1 — Download the Release
 Head to the [releases page](https://github.com/mateimmo14/mailr/releases) and download the latest `.exe`. Run it directly, no Python required.
 
-### Option 2 — Clone the Repository
+### Option 2 — Clone the Repository (Must have astral-uv)
 ```bash
 git clone https://github.com/mateimmo14/mailr.git
 cd mailr
-pip install -r requirements.txt
-python main.py
+uv run main.py
 ```
