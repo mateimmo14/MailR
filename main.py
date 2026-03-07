@@ -15,6 +15,9 @@ if len(sys.argv) > 1 and sys.argv[1] == "viewer":
 
     sys.stdout = open(os.devnull, "w")
     sys.stderr = open(os.devnull, "w")
+
+    sys.stdout = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")
     os.environ["PYWEBVIEW_GUI"] = "qt"
     IMAP_SERVERS = {
         "gmail.com": "imap.gmail.com",
@@ -202,7 +205,7 @@ def collect():
     email_ids = msg_data[0].split()
     emails = []
 
-    with ThreadPoolExecutor(max_workers=14) as executor:
+    with ThreadPoolExecutor(max_workers=12) as executor:
         emails = list(executor.map(fetch_email, email_ids[::-1]))
     return emails
 
@@ -264,7 +267,13 @@ class EmailButton(Button):
     def on_button_pressed(self, event):
         event.stop()
         event.prevent_default()
-        subprocess.Popen([sys.executable, __file__, "viewer", str(self.lemail["Id"]), address, password], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if getattr(sys, 'frozen', False):
+            cmd = [sys.executable, "viewer", str(self.lemail["Id"]), address, password]
+        else:
+            cmd = [sys.executable, os.path.abspath(__file__), "viewer", str(self.lemail["Id"]), address, password]
+
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 
 class EmailLabel(Label):
     def on_mount(self):
