@@ -9,7 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import textual
-if "--viewer" in sys.argv:
+if len(sys.argv) > 1 and sys.argv[1] == "viewer":
     import os
     import sys, imaplib, email
 
@@ -92,9 +92,9 @@ if "--viewer" in sys.argv:
         spawn_text(final, "email")
 
 
-    email_id = sys.argv[1].encode()
-    address = str(sys.argv[2])
-    password = str(sys.argv[3])
+    email_id = sys.argv[2].encode()
+    address = str(sys.argv[3])
+    password = str(sys.argv[4])
     view_email(email_id, address, password)
 
     sys.exit()
@@ -182,8 +182,14 @@ def get_connection():
         thread_local.mail = imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
         thread_local.mail.login(address, password)
         thread_local.mail.select("inbox")
+    else:
+        try:
+            thread_local.mail.noop()
+        except:
+            thread_local.mail = imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
+            thread_local.mail.login(address, password)
+            thread_local.mail.select("inbox")
     return thread_local.mail
-
 def fetch_email(email_id):
     mail = get_connection()
     status, msg = mail.fetch(email_id, '(BODY[HEADER.FIELDS (FROM TO SUBJECT)])')
@@ -196,15 +202,15 @@ def fetch_email(email_id):
     }
 
 from concurrent.futures import ThreadPoolExecutor
-def collect(amount):
+def collect():
 
     mail.select('inbox')
     status, msg_data = mail.search(None, "ALL")
     email_ids = msg_data[0].split()
     emails = []
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        emails = list(executor.map(fetch_email, email_ids[::-1][:amount]))
+    with ThreadPoolExecutor(max_workers=14) as executor:
+        emails = list(executor.map(fetch_email, email_ids[::-1]))
     return emails
 
 def send_mail(subject, to, msg):
@@ -230,19 +236,19 @@ from textual.widgets import *
 from textual.containers import *
 
 
+
 login()
 clear()
-email_amounts = None
-while not isinstance(email_amounts, int):
-    try:
-        email_amounts = int(input("How many emails do you want to see?\n> "))
-        clear()
-    except ValueError:
-        continue
-clear()
 print("Loading emails...")
-emails_data = collect(email_amounts)
+emails_data = collect()
 clear()
+def search(subject):
+    results = []
+    for email in emails_data:
+        if subject.lower() in email["Subject"] or subject.lower() in email["From"]:
+            results.append(email)
+    return results
+
 class CompactHorizontal(Horizontal):
     def on_mount(self):
         self.styles.height = "auto"
@@ -252,7 +258,7 @@ class CompactHorizontal(Horizontal):
 class CompactCollapsible(Collapsible):
 
     def on_mount(self):
-        self.styles.margin = 0
+        self.styles.margin = 1
 class BodyInput(TextArea):
     def on_mount(self):
         self.styles.height= "80%"
@@ -265,14 +271,17 @@ class EmailButton(Button):
     def on_button_pressed(self, event):
         event.stop()
         event.prevent_default()
-        subprocess.Popen([sys.executable, "--viewer", str(self.lemail["Id"]), address, password], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen([sys.executable, __file__, "viewer", str(self.lemail["Id"]), address, password], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 class EmailLabel(Label):
     def on_mount(self):
         self.styles.width ="80%"
+class SearchBar(Input):
+    def on_mount(self):
+        self.styles.width = "90%"
 class MailR(textual.app.App):
     emails = reactive(emails_data, recompose=True)
-
+    searched_emails = reactive([], recompose=True)
 
 
     BINDINGS = [("q", "quit", "Exit"), ("r", "refresh", "Refresh")]
@@ -284,7 +293,7 @@ class MailR(textual.app.App):
             self._refreshing = True
             self.run_worker(self._refresh_worker,thread=True)
     def _refresh_worker(self):
-        self.emails = collect(email_amounts)
+        self.emails = collect()
         self._refreshing = False
 
 
@@ -293,6 +302,7 @@ class MailR(textual.app.App):
     def compose(self) -> textual.app.ComposeResult:
         yield Header()
         with TabbedContent():
+#--------------------INBOX TAB--------------------------
             with TabPane(title="Inbox"):
                 with VerticalScroll(id="inbox"):
 
@@ -304,6 +314,7 @@ class MailR(textual.app.App):
                                     EmailButton(email)
 
                                 )
+#------------------SEND EMAIL TAB------------------------------
             with TabPane(title="Send Email"):
                 with VerticalScroll():
                     yield Input(placeholder="Subject", id="subject")
@@ -311,8 +322,24 @@ class MailR(textual.app.App):
                     yield BodyInput(placeholder="Body (HTML can be used)", id="body")
                 yield Button("Send", action="app.send")
                 yield Label("", id="Succes")
+#-----------------------SEARCH TAB-----------------
+            with TabPane(title="Search"):
+                with CompactHorizontal():
+                    yield SearchBar(placeholder="Enter search query", id="search_bar")
+                    yield Button(label="Search", id="search_button", action="app.search")
+                with VerticalScroll():
+                    for email in self.searched_emails:
+                        with CompactCollapsible(title=email["Subject"], collapsed=True):
+                            yield CompactHorizontal(
+                                EmailLabel(f"From: {email['From']}\nTo: {email['To']}"),
+
+                                EmailButton(email)
+
+                            )
         yield Footer()
 
+    def action_search(self):
+        self.searched_emails = search(self.query_one("#search_bar", Input).value)
     def action_send(self):
         subject = self.query_one("#subject", Input).value
         to = self.query_one("#to", Input).value
