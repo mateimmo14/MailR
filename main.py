@@ -278,11 +278,14 @@ class MailR(textual.app.App):
     BINDINGS = [("q", "quit", "Exit"), ("r", "refresh", "Refresh")]
     theme = "textual-dark"
 
-
+    _refreshing = False
     def action_refresh(self):
-        self.run_worker(self._refresh_worker,thread=True)
+        if not self._refreshing:
+            self._refreshing = True
+            self.run_worker(self._refresh_worker,thread=True)
     def _refresh_worker(self):
         self.emails = collect(email_amounts)
+        self._refreshing = False
 
 
     def action_quit(self):
