@@ -1,17 +1,14 @@
 import imaplib,os,platform,sys,time
+import threading
 from email.header import decode_header, make_header
-import email,threading,tkinter
-import smtplib,json
-import inquirer
-from textual.layouts.vertical import VerticalLayout
+import email
+import smtplib
 
-os.environ["PYWEBVIEW_GUI"] = "qt"
-import ttkthemes,tkinter as tk
-from tkinter import scrolledtext
+
+
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import textual
-import webview
 
 IMAP_SERVERS = {
     "gmail.com": "imap.gmail.com",
@@ -91,39 +88,23 @@ def login():
     except KeyError:
         input("Sorry, that domain isn't supported!\nPress any key to continue...")
         return login()
+thread_local = threading.local()
+def get_connection():
+    if not hasattr(thread_local, 'mail'):
+        thread_local.mail = imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
+        thread_local.mail.login(address, password)
+        thread_local.mail.select("inbox")
+    return thread_local.mail
 
 def fetch_email(email_id):
-    mail= imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
-    mail.login(address, password)
-    mail.select("inbox")
-    status, msg = mail.fetch(email_id, '(RFC822)')
+    mail = get_connection()
+    status, msg = mail.fetch(email_id, '(BODY[HEADER.FIELDS (FROM TO SUBJECT)])')
     data = email.message_from_bytes(msg[0][1])
-    final = ""
-    html_body = ""
-    plain_body = ""
-    if data.is_multipart():
-
-        for part in data.walk():
-            if part.get_content_type() == "text/html" and not html_body:
-                html_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-            elif part.get_content_type() == "text/plain" and not html_body:
-                plain_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-
-
-    else:
-        if data.get_content_type() == "text/html" and not html_body:
-            html_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
-        elif data.get_content_type() == "text/plain" and not html_body:
-            plain_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
-
-    mail.logout()
     return {
         "Id": int(email_id),
         "Subject": str(make_header(decode_header(data["Subject"]))),
         "From": str(make_header(decode_header(data["From"]))),
-        "To": str(make_header(decode_header(data["To"]))),
-        "Content": html_body if html_body else f"<pre>{plain_body}</pre>"
-
+        "To": str(make_header(decode_header(data["To"])))
     }
 
 from concurrent.futures import ThreadPoolExecutor
@@ -138,86 +119,85 @@ def collect(amount):
         emails = list(executor.map(fetch_email, email_ids[::-1][:amount]))
     return emails
 
-def send_mail():
+def send_mail(subject, to, msg):
     try:
-        global address,password,cancelled
-        clear()
-        msg = MIMEMultipart()
-        subject = input("Subject: ")
+        global address,password
+
+
+
         fr = address
-        to = input("To: ")
-        clear()
-        #-----enter text window----
 
-        cancelled = [False]
 
-        widget = ttkthemes.ThemedTk(theme="equilux")
-        widget.geometry("700x500")
-        widget.title("Mail Content")
-        text = scrolledtext.ScrolledText(widget)
-        def rais():
-            global cancelled
-            clear()
-            widget.destroy()
-            input("Process aborted\nPress any key to continue...")
-            cancelled=[True]
-        def submit():
-            msg["Subject"] = subject
-            msg["From"] = fr
-            msg["To"] = to
-            msg.attach(MIMEText(text.get("1.0", "end-1c"), "plain"))
-            widget.destroy()
 
-        submit = tk.Button(widget, command=submit, text="Submit")
-        exi = tk.Button(widget, command=rais, text="Exit", )
-        text.pack()
-        submit.pack(pady=20)
-        exi.pack(padx=20)
+        with smtplib.SMTP_SSL(SMTP_SERVERS[address.split("@")[1]]) as server:
+            server.login(address, password)
+            server.sendmail(fr, to, msg.as_string())
 
-        print("Submit the content to continue...")
-        widget.mainloop()
-        if not cancelled[0]:
-
-            with smtplib.SMTP_SSL(SMTP_SERVERS[address.split("@")[1]]) as server:
-                server.login(address, password)
-                server.sendmail(msg["From"], msg["To"], msg.as_string())
-        clear()
-    except Exception as e:
-        clear()
-        input(f"An error occurred\nPress any key to continue...")
-        return
+        return True
+    except Exception:
+        return False
 
 import subprocess
 from textual.widgets import *
 from textual.containers import *
+
+
 login()
+clear()
+email_amounts = None
+while not isinstance(email_amounts, int):
+    try:
+        email_amounts = int(input("How many emails do you want to see?\n> "))
+        clear()
+    except ValueError:
+        continue
+clear()
+print("Loading emails...")
+emails_data = collect(email_amounts)
+clear()
 class CompactHorizontal(Horizontal):
     def on_mount(self):
         self.styles.height = "auto"
         self.styles.padding = 0
         self.styles.margin = 0
+
 class CompactCollapsible(Collapsible):
 
     def on_mount(self):
         self.styles.margin = 0
-        self.styles.padding = 0
+class BodyInput(TextArea):
+    def on_mount(self):
+        self.styles.height= "80%"
+
 class EmailButton(Button):
     def __init__(self, lemail):
         super().__init__(label="View full email")
         self.lemail = lemail
+
     def on_button_pressed(self, event):
+        event.stop()
         event.prevent_default()
         if getattr(sys, 'frozen', False):
             subprocess.Popen([sys.executable, "--view_email", str(self.lemail["Id"]), address, password],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         else:
             subprocess.Popen([sys.executable, "view_email.py", str(self.lemail["Id"]), address, password],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-
+class EmailLabel(Label):
+    def on_mount(self):
+        self.styles.width ="80%"
 class MailR(textual.app.App):
+    emails = reactive(emails_data, recompose=True)
 
-    emails = collect(10)
 
-    BINDINGS = [("q", "quit", "Exit")]
+
+    BINDINGS = [("q", "quit", "Exit"), ("r", "refresh", "Refresh")]
     theme = "textual-dark"
+
+
+    def action_refresh(self):
+        self.run_worker(self._refresh_worker,thread=True)
+    def _refresh_worker(self):
+        self.emails = collect(email_amounts)
+
 
     def action_quit(self):
         sys.exit()
@@ -225,19 +205,47 @@ class MailR(textual.app.App):
         yield Header()
         with TabbedContent():
             with TabPane(title="Inbox"):
-                with VerticalScroll():
+                with VerticalScroll(id="inbox"):
 
                         for email in self.emails:
                             with CompactCollapsible(title=email["Subject"], collapsed=True):
                                 yield CompactHorizontal(
-                                    Label(f"From: {email['From']}\nTo: {email['To']}"),
-                                    EmailButton(email)
-                                )
+                                    EmailLabel(f"From: {email['From']}\nTo: {email['To']}" ),
 
+                                    EmailButton(email)
+
+                                )
+            with TabPane(title="Send Email"):
+                with VerticalScroll():
+                    yield Input(placeholder="Subject", id="subject")
+                    yield Input(placeholder="To", id="to")
+                    yield BodyInput(placeholder="Body (HTML can be used)", id="body")
+                yield Button("Send", action="app.send")
+                yield Label("", id="Succes")
         yield Footer()
+
+    def action_send(self):
+        subject = self.query_one("#subject", Input).value
+        to = self.query_one("#to", Input).value
+        body = self.query_one("#body", TextArea).text
+
+        msg = MIMEMultipart()
+        msg["Subject"] = subject
+        msg["From"] = address
+        msg["To"] = to
+        msg.attach(MIMEText(body, "plain"))
+
+        value = send_mail(subject, to, msg)
+        if value:
+            self.query_one("#Succes", Label).update("[green]Mail sent successfully")
+        else:
+            self.query_one("#Succes", Label).update("[red]Mail not sent")
+        self.query_one("#subject", Input).value = ""
+        self.query_one("#to", Input).value = ""
+        self.query_one("#body", TextArea).clear()
 
 if __name__ == "__main__":
 
     MailR().run()
-
+    clear()
 

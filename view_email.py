@@ -2,6 +2,7 @@ import os
 import sys,imaplib,email
 sys.stdout=open(os.devnull, "w")
 sys.stderr=open(os.devnull, "w")
+os.environ["PYWEBVIEW_GUI"] = "qt"
 IMAP_SERVERS = {
     "gmail.com": "imap.gmail.com",
     "outlook.com": "imap-mail.outlook.com",
