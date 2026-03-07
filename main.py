@@ -1,15 +1,16 @@
 import imaplib,os,platform,sys,time
 from email.header import decode_header, make_header
 import email,threading,tkinter
-import smtplib
+import smtplib,json
 import inquirer
+from textual.layouts.vertical import VerticalLayout
 
 os.environ["PYWEBVIEW_GUI"] = "qt"
 import ttkthemes,tkinter as tk
 from tkinter import scrolledtext
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+import textual
 import webview
 
 IMAP_SERVERS = {
@@ -91,48 +92,50 @@ def login():
         input("Sorry, that domain isn't supported!\nPress any key to continue...")
         return login()
 
+def fetch_email(email_id):
+    mail= imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
+    mail.login(address, password)
+    mail.select("inbox")
+    status, msg = mail.fetch(email_id, '(RFC822)')
+    data = email.message_from_bytes(msg[0][1])
+    final = ""
+    html_body = ""
+    plain_body = ""
+    if data.is_multipart():
+
+        for part in data.walk():
+            if part.get_content_type() == "text/html" and not html_body:
+                html_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
+            elif part.get_content_type() == "text/plain" and not html_body:
+                plain_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
+
+
+    else:
+        if data.get_content_type() == "text/html" and not html_body:
+            html_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
+        elif data.get_content_type() == "text/plain" and not html_body:
+            plain_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
+
+    mail.logout()
+    return {
+        "Id": int(email_id),
+        "Subject": str(make_header(decode_header(data["Subject"]))),
+        "From": str(make_header(decode_header(data["From"]))),
+        "To": str(make_header(decode_header(data["To"]))),
+        "Content": html_body if html_body else f"<pre>{plain_body}</pre>"
+
+    }
+
+from concurrent.futures import ThreadPoolExecutor
 def collect(amount):
 
     mail.select('inbox')
     status, msg_data = mail.search(None, "ALL")
     email_ids = msg_data[0].split()
     emails = []
-    print(f"Total emails: {len(email_ids)}")
-    i = 0
-    for email_id in email_ids[::-1]:
-        if i == amount:
-            break
-        status, msg = mail.fetch(email_id, '(RFC822)')
-        data = email.message_from_bytes(msg[0][1])
-        final = ""
-        html_body = ""
-        plain_body = ""
-        if data.is_multipart():
 
-            for part in data.walk():
-                if part.get_content_type() == "text/html" and not html_body:
-                    html_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-                elif part.get_content_type() == "text/plain" and not html_body:
-                    plain_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-
-
-        else:
-            if data.get_content_type() == "text/html" and not html_body:
-                html_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
-            elif data.get_content_type() == "text/plain" and not html_body:
-                plain_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
-        final += html_body if html_body else f"<pre>{plain_body}</pre>"
-
-
-        emails.append({
-            "Id" : int(email_id),
-            "Subject": str(make_header(decode_header(data["Subject"]))),
-            "From":str(make_header(decode_header(data["From"]))),
-            "To": str(make_header(decode_header(data["To"])))  ,
-            "Content": html_body if html_body else f"<pre>{plain_body}</pre>"
-
-        })
-        i += 1
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        emails = list(executor.map(fetch_email, email_ids[::-1][:amount]))
     return emails
 
 def send_mail():
@@ -183,89 +186,58 @@ def send_mail():
         clear()
         input(f"An error occurred\nPress any key to continue...")
         return
-def spawn_text(text, title="popup"):
 
-    webview.create_window(title, html=text, )
-    webview.start()
-def view_emails():
-    try:
-        clear()
-        amount = int(input("Please enter the amount of emails you wish to see:\n> "))
-        emails = collect(amount)
-        clear()
-        final = "<b>"
-        for message in emails:
+import subprocess
+from textual.widgets import *
+from textual.containers import *
+login()
+class CompactHorizontal(Horizontal):
+    def on_mount(self):
+        self.styles.height = "auto"
+        self.styles.padding = 0
+        self.styles.margin = 0
+class CompactCollapsible(Collapsible):
 
-            final += f"Id: {message["Id"]}<br>Subject: {message['Subject']}<br>From: {message['From']}<br><br>"
-        spawn_text(final + "</b>", "Emails")
-
-        clear()
-    except Exception as e:
-        clear()
-
-        input("An error occurred\nPress any key to continue...")
-        return
-def view_email():
-    try:
-        clear()
-        mail.select('inbox')
-        status, msg_data = mail.search(None, "ALL")
-        email_ids = msg_data[0].split()
-        email_id = int(input("Please enter the ID of the email you wish to view (Or enter -1 to view the latest email):\n> "))
-
-        mail.select('inbox')
-        if email_id == -1:
-            email_id = len(email_ids)
-        data = email.message_from_bytes(mail.fetch(str(email_id).encode(), '(RFC822)')[1][0][1])
-        final = f"<b>Subject: {data["Subject"]}</b><br>From: {data['From']}<br>To: {data['To']}<hr>"
-        html_body = ""
-        plain_body = ""
-        if data.is_multipart():
-
-
-
-            for part in data.walk():
-                if part.get_content_type() == "text/html" and not html_body:
-                    html_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-                elif part.get_content_type() == "text/plain" and not html_body:
-                    plain_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-
-
+    def on_mount(self):
+        self.styles.margin = 0
+        self.styles.padding = 0
+class EmailButton(Button):
+    def __init__(self, lemail):
+        super().__init__(label="View full email")
+        self.lemail = lemail
+    def on_button_pressed(self, event):
+        event.prevent_default()
+        if getattr(sys, 'frozen', False):
+            subprocess.Popen([sys.executable, "--view_email", str(self.lemail["Id"]), address, password],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         else:
-            if data.get_content_type() == "text/html" and not html_body:
-                html_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
-            elif data.get_content_type() == "text/plain" and not html_body:
-                plain_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
-        final += html_body if html_body else f"<pre>{plain_body}</pre>"
+            subprocess.Popen([sys.executable, "view_email.py", str(self.lemail["Id"]), address, password],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
+class MailR(textual.app.App):
 
-        spawn_text(final, "email")
-    except Exception as e:
-        clear()
-        input(f"An error occurred\nPress any key to continue...")
-        return
+    emails = collect(10)
 
-def main():
-    login()
-    clear()
-    while True:
+    BINDINGS = [("q", "quit", "Exit")]
+    theme = "textual-dark"
 
+    def action_quit(self):
+        sys.exit()
+    def compose(self) -> textual.app.ComposeResult:
+        yield Header()
+        with TabbedContent():
+            with TabPane(title="Inbox"):
+                with VerticalScroll():
 
-        decision = inquirer.prompt([
-                inquirer.List('decision', message="Welcome to MailR! Please select an option from below", choices=["1)View inbox","2)Send email", "3)View email", "4)Exit"])
-            ])['decision']
-        #decision = int(input("1) View inbox\n2) Send email\n3) View email\n4) Exit\n> "))
-        if decision[0] == '1':
-            view_emails()
-        if decision[0] == '2':
-            send_mail()
-        if decision[0] == '3':
-            view_email()
-        if decision[0] == '4':
-            clear()
-            sys.exit(0)
-        clear()
+                        for email in self.emails:
+                            with CompactCollapsible(title=email["Subject"], collapsed=True):
+                                yield CompactHorizontal(
+                                    Label(f"From: {email['From']}\nTo: {email['To']}"),
+                                    EmailButton(email)
+                                )
+
+        yield Footer()
+
 if __name__ == "__main__":
-    main()
+
+    MailR().run()
 
 
