@@ -3,11 +3,15 @@ from email.header import decode_header, make_header
 import email,threading,tkinter
 import smtplib
 import inquirer
-import bs4
+
+os.environ["PYWEBVIEW_GUI"] = "qt"
 import ttkthemes,tkinter as tk
 from tkinter import scrolledtext
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+import webview
+
 IMAP_SERVERS = {
     "gmail.com": "imap.gmail.com",
     "outlook.com": "imap-mail.outlook.com",
@@ -99,24 +103,33 @@ def collect(amount):
         if i == amount:
             break
         status, msg = mail.fetch(email_id, '(RFC822)')
-        msg = email.message_from_bytes(msg[0][1])
-        body = ""
-        if msg.is_multipart():
+        data = email.message_from_bytes(msg[0][1])
+        final = ""
+        html_body = ""
+        plain_body = ""
+        if data.is_multipart():
 
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-                    break
+            for part in data.walk():
+                if part.get_content_type() == "text/html" and not html_body:
+                    html_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
+                elif part.get_content_type() == "text/plain" and not html_body:
+                    plain_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
+
+
         else:
-            body = msg.get_payload(decode=True).decode(msg.get_content_charset() or "utf-8")
+            if data.get_content_type() == "text/html" and not html_body:
+                html_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
+            elif data.get_content_type() == "text/plain" and not html_body:
+                plain_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
+        final += html_body if html_body else f"<pre>{plain_body}</pre>"
 
 
         emails.append({
             "Id" : int(email_id),
-            "Subject": str(make_header(decode_header(msg["Subject"]))),
-            "From":str(make_header(decode_header(msg["From"]))),
-            "To": str(make_header(decode_header(msg["To"])))  ,
-            "Content": body
+            "Subject": str(make_header(decode_header(data["Subject"]))),
+            "From":str(make_header(decode_header(data["From"]))),
+            "To": str(make_header(decode_header(data["To"])))  ,
+            "Content": html_body if html_body else f"<pre>{plain_body}</pre>"
 
         })
         i += 1
@@ -138,7 +151,7 @@ def send_mail():
         widget = ttkthemes.ThemedTk(theme="equilux")
         widget.geometry("700x500")
         widget.title("Mail Content")
-        text = tk.scrolledtext.ScrolledText(widget)
+        text = scrolledtext.ScrolledText(widget)
         def rais():
             global cancelled
             clear()
@@ -168,34 +181,28 @@ def send_mail():
         clear()
     except Exception as e:
         clear()
-        input(f"{e}\nAn error occurred\nPress any key to continue...")
+        input(f"An error occurred\nPress any key to continue...")
         return
 def spawn_text(text, title="popup"):
-    max_width = 0
-    for lines in text.split("\n"):
-        if max_width < len(lines):
-            max_width = len(lines)
-    root = ttkthemes.ThemedTk(theme="equilux")
-    root.title(title)
-    lable = tk.Text(root, width=max_width if max_width > 700 else 700, height=500)
-    lable.insert("1.0", text)
-    lable.configure(state="disabled")
 
-    lable.pack()
-    root.mainloop()
+    webview.create_window(title, html=text, )
+    webview.start()
 def view_emails():
     try:
         clear()
         amount = int(input("Please enter the amount of emails you wish to see:\n> "))
         emails = collect(amount)
         clear()
-        final = ""
+        final = "<b>"
         for message in emails:
-            final += f"Id: {message["Id"]}\nSubject: {message['Subject']}\nFrom: {message['From']}\n\n"
-        threading.Thread(target=spawn_text, args=(final, "emails")).start()
+
+            final += f"Id: {message["Id"]}<br>Subject: {message['Subject']}<br>From: {message['From']}<br><br>"
+        spawn_text(final + "</b>", "Emails")
+
         clear()
-    except:
+    except Exception as e:
         clear()
+
         input("An error occurred\nPress any key to continue...")
         return
 def view_email():
@@ -210,22 +217,34 @@ def view_email():
         if email_id == -1:
             email_id = len(email_ids)
         data = email.message_from_bytes(mail.fetch(str(email_id).encode(), '(RFC822)')[1][0][1])
-        final = f"Subject: {data["Subject"]}\nFrom: {data['From']}\nTo: {data['To']}\n\n"
+        final = f"<b>Subject: {data["Subject"]}</b><br>From: {data['From']}<br>To: {data['To']}<hr>"
+        html_body = ""
+        plain_body = ""
         if data.is_multipart():
+
+
+
             for part in data.walk():
-                if part.get_content_type() == "text/plain":
-                    final += part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
-                elif part.get_content_type() == "text/html":
-                    final += bs4.BeautifulSoup(part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8"), "html.parser").get_text()
+                if part.get_content_type() == "text/html" and not html_body:
+                    html_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
+                elif part.get_content_type() == "text/plain" and not html_body:
+                    plain_body = part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8")
+
+
         else:
+            if data.get_content_type() == "text/html" and not html_body:
+                html_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
+            elif data.get_content_type() == "text/plain" and not html_body:
+                plain_body = data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8")
+        final += html_body if html_body else f"<pre>{plain_body}</pre>"
 
-                final += bs4.BeautifulSoup(data.get_payload(decode=True).decode(data.get_content_charset() or "utf-8"), "html.parser").get_text()
 
-        spawn_text(final, "Email")
+        spawn_text(final, "email")
     except Exception as e:
         clear()
-        input(f"{e}\nAn error occurred\nPress any key to continue...")
+        input(f"An error occurred\nPress any key to continue...")
         return
+
 def main():
     login()
     clear()
