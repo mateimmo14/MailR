@@ -182,13 +182,6 @@ def get_connection():
         thread_local.mail = imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
         thread_local.mail.login(address, password)
         thread_local.mail.select("inbox")
-    else:
-        try:
-            thread_local.mail.noop()
-        except:
-            thread_local.mail = imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
-            thread_local.mail.login(address, password)
-            thread_local.mail.select("inbox")
     return thread_local.mail
 def fetch_email(email_id):
     mail = get_connection()
@@ -245,7 +238,7 @@ clear()
 def search(subject):
     results = []
     for email in emails_data:
-        if subject.lower() in email["Subject"] or subject.lower() in email["From"]:
+        if subject.lower() in email["Subject"].lower() or subject.lower() in email["From"].lower():
             results.append(email)
     return results
 
@@ -281,7 +274,7 @@ class SearchBar(Input):
         self.styles.width = "90%"
 class MailR(textual.app.App):
     emails = reactive(emails_data, recompose=True)
-    searched_emails = reactive([], recompose=True)
+    searched_emails = reactive([], recompose=False)
 
 
     BINDINGS = [("q", "quit", "Exit"), ("r", "refresh", "Refresh")]
@@ -327,10 +320,11 @@ class MailR(textual.app.App):
                 with CompactHorizontal():
                     yield SearchBar(placeholder="Enter search query", id="search_bar")
                     yield Button(label="Search", id="search_button", action="app.search")
-                with VerticalScroll():
+                with VerticalScroll(id="search-results"):
                     for email in self.searched_emails:
                         with CompactCollapsible(title=email["Subject"], collapsed=True):
                             yield CompactHorizontal(
+
                                 EmailLabel(f"From: {email['From']}\nTo: {email['To']}"),
 
                                 EmailButton(email)
@@ -340,6 +334,21 @@ class MailR(textual.app.App):
 
     def action_search(self):
         self.searched_emails = search(self.query_one("#search_bar", Input).value)
+
+    def watch_searched_emails(self):
+        try:
+            scroll = self.query_one("#search-results", VerticalScroll)
+        except:
+            return
+        children = list(scroll.query("*"))
+        for child in children:
+            child.remove()
+        for msg in self.searched_emails:
+            c = CompactCollapsible(CompactHorizontal(EmailLabel(f"From: {msg['From']}\nTo: {msg['To']}"),EmailButton(msg)) , title=msg["Subject"], collapsed=True)
+            scroll.mount(c)
+
+
+
     def action_send(self):
         subject = self.query_one("#subject", Input).value
         to = self.query_one("#to", Input).value
