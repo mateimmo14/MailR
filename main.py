@@ -154,31 +154,6 @@ def clear():
         os.system('cls')
     else:
         os.system('clear')
-def login():
-    global mail,address,password
-    clear()
-    address = input("Please enter your email address:\n> ")
-    password = getpass.getpass("Please enter your password:\n> ")
-    try:
-        mail = imaplib.IMAP4_SSL(IMAP_SERVERS[address.split("@")[1]])
-
-
-        mail.login(address,password)
-    except (imaplib.IMAP4.error, smtplib.SMTPAuthenticationError) as e:
-        clear()
-        if str(e) == '[AUTHENTICATIONFAILED] Invalid credentials (Failure)':
-            print("Invalid credentials. Please try again.\nHint: If you have 2FA on your email account, go to \033]8;;https://myaccount.google.com/apppasswords\033\\\033[94mhttps://myaccount.google.com/apppasswords\033[0m\033]8;;\033\\ and create a app password and use it here to sign in")
-            time.sleep(2)
-        elif str(e) == "LOGIN command error: BAD [b'Not enough arguments provided 5c2dc8763939e-495dbdb4356mb40785970122']":
-            print("Invalid credentials. Please try again.\nHint: If you have 2FA on your email account, go to \033]8;;https://myaccount.google.com/apppasswords\033\\\033[94mhttps://myaccount.google.com/apppasswords\033[0m\033]8;;\033\\ and create a app password and use it here to sign in")
-            time.sleep(2)
-        else:
-            print("Invalid credentials. Please try again.\nHint: If you have 2FA on your email account, go to \033]8;;https://myaccount.google.com/apppasswords\033\\\033[94mhttps://myaccount.google.com/apppasswords\033[0m\033]8;;\033\\ and create a app password and use it here to sign in")
-            input("Press any key to continue...")
-        return login()
-    except KeyError:
-        input("Sorry, that domain isn't supported!\nPress any key to continue...")
-        return login()
 thread_local = threading.local()
 def get_connection():
     if not hasattr(thread_local, 'mail'):
@@ -204,9 +179,12 @@ def collect():
     status, msg_data = mail.search(None, "ALL")
     email_ids = msg_data[0].split()
     emails = []
-
-    with ThreadPoolExecutor(max_workers=12) as executor:
-        emails = list(executor.map(fetch_email, email_ids[::-1]))
+    if len(email_ids) < 500:
+        with ThreadPoolExecutor(max_workers=7) as executor:
+            emails = list(executor.map(fetch_email, email_ids[::-1]))
+    else:
+        with ThreadPoolExecutor(max_workers=7) as executor:
+            emails = list(executor.map(fetch_email, email_ids[::-1][:500]))
     return emails
 
 def send_mail(subject, to, msg):
@@ -233,12 +211,9 @@ from textual.containers import *
 
 
 
-#login()
-#clear()
-#print("Loading emails...")
-#emails_data = collect()
+
 emails_data = []
-#clear()
+
 def search(subject):
     results = []
     for email in emails_data:
@@ -364,18 +339,24 @@ class MailR(textual.app.App):
     searched_emails = reactive([], recompose=False)
 
     def on_mount(self):
+        global emails_data
         self.run_worker(self._refresh_worker,thread=True)
+
     BINDINGS = [("q", "quit", "Exit"), ("r", "refresh", "Refresh")]
     theme = "atom-one-dark"
 
     _refreshing = False
     def action_refresh(self):
+        global emails_data
         if not self._refreshing:
             self._refreshing = True
             self.run_worker(self._refresh_worker,thread=True)
+        emails_data = self.emails
     def _refresh_worker(self):
+        global emails_data
         self.emails = collect()
         self._refreshing = False
+        emails_data = self.emails
 
 
     def action_quit(self):
@@ -396,7 +377,7 @@ class MailR(textual.app.App):
 
                                 )
                         if self.emails == []:
-                            yield Label("Emails are loading...")
+                            yield Label("Emails are loading...", id="loadingding")
 #------------------SEND EMAIL TAB------------------------------
             with TabPane(title="Send Email"):
                 with VerticalScroll():
@@ -424,9 +405,12 @@ class MailR(textual.app.App):
 
     def action_search(self):
         self.searched_emails = search(self.query_one("#search_bar", Input).value)
+
     async def watch_emails(self):
+
         try:
             scroll = self.query_one("#inbox", VerticalScroll)
+
         except:
             return
         children = list(scroll.query("*"))
@@ -435,17 +419,20 @@ class MailR(textual.app.App):
         for msg in self.emails:
             c = CompactCollapsible(CompactHorizontal(EmailLabel(f"From: {msg['From']}\nTo: {msg['To']}"), EmailButton(msg)) , title=msg["Subject"], collapsed=True)
             await scroll.mount(c)
-    def watch_searched_emails(self):
+
+    async def watch_searched_emails(self):
         try:
             scroll = self.query_one("#search-results", VerticalScroll)
         except:
             return
+
         children = list(scroll.query("*"))
         for child in children:
-            child.remove()
+            await child.remove()
         for msg in self.searched_emails:
             c = CompactCollapsible(CompactHorizontal(EmailLabel(f"From: {msg['From']}\nTo: {msg['To']}"),EmailButton(msg)) , title=msg["Subject"], collapsed=True)
-            scroll.mount(c)
+            await scroll.mount(c)
+
 
 
 
