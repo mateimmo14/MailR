@@ -35,7 +35,7 @@ git clone https://github.com/mateimmo14/mailr.git
 cd mailr
 uv run main.py
 ```
-##  To come in further releases
-- Login through textual, making it a seamless experience (if possible)
-  # Warning
-  * The new email renderer has made the compiled program +100MB if you do not wish to use our own compiled exe compile it with pyinstaller and uv  with `uv run pyinstaller --onefile --hidden-import=readchar --collect-all=inquirer --collect-all=readchar main.py` or just run main.py directly
+## In work
+- Better login
+- Faster loading with a 500 email limit
+- App being loaded while emails are loading
