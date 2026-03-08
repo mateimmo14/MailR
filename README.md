@@ -36,7 +36,6 @@ cd mailr
 uv run main.py
 ```
 ##  To come in further releases
-- The abillity to search emails
-- A way better TUI with textual
+- Login through textual, making it a seamless experience (if possible)
   # Warning
   * The new email renderer has made the compiled program +100MB if you do not wish to use our own compiled exe compile it with pyinstaller and uv  with `uv run pyinstaller --onefile --hidden-import=readchar --collect-all=inquirer --collect-all=readchar main.py` or just run main.py directly
