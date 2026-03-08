@@ -4,7 +4,7 @@ from email.header import decode_header, make_header
 import email
 import smtplib
 
-
+mail = None
 
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -233,11 +233,12 @@ from textual.containers import *
 
 
 
-login()
-clear()
-print("Loading emails...")
-emails_data = collect()
-clear()
+#login()
+#clear()
+#print("Loading emails...")
+#emails_data = collect()
+emails_data = []
+#clear()
 def search(subject):
     results = []
     for email in emails_data:
@@ -275,19 +276,97 @@ class EmailButton(Button):
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+
 class EmailLabel(Label):
     def on_mount(self):
         self.styles.width ="80%"
 class SearchBar(Input):
     def on_mount(self):
         self.styles.width = "90%"
+class LoginInput(Input):
+    pass
+
+#------------------LOGIN APP-------------------
+class LoginApp(textual.app.App):
+    BINDINGS = [("q", "quit", "Exit")]
+    theme="atom-one-dark"
+    CSS = """
+        LoginInput {
+            width: 30%;
+        }
+        CenterMiddle {
+            align: center middle;
+        }
+        #login {
+            margin-top: 3;
+            align: center middle;
+            
+        }
+        #login_label {
+            margin-bottom: 3;
+            text-style: bold;
+        }
+        Button {
+            margin-left: 1;
+        }
+        
+    """
+    global mail
+    def compose(self):
+        global mail
+        yield Header()
+        if mail is None:
+            with CenterMiddle():
+                yield Label("[italic]Welcome to MailR, please log in to continue[/italic]", id="login_label", )
+                yield LoginInput(placeholder="Username", id="username")
+                yield LoginInput(placeholder="Password", id="password", password=True)
+
+                yield Button("Login", id="login")
+                yield Label("Hint: If you're using 2FA with Google go to https://myaccount.google.com/apppasswords")
+                yield Label("", id="Suces")
+        else:
+            with CenterMiddle():
+                yield Label("Login Succeeded! Loading emails...")
+        yield Footer()
+    def on_button_pressed(self, event):
+
+        self._temp_address = self.query_one("#username", Input).value
+        self._temp_password = self.query_one("#password", Input).value
+        self.run_worker(self._login_worker, thread=True)
+
+
+    def _login_worker(self):
+        global mail,address,password,emails_data
+
+
+        try:
+            mail = imaplib.IMAP4_SSL(IMAP_SERVERS[self._temp_address.split("@")[1]])
+            mail.login(self._temp_address, self._temp_password)
+        except KeyError:
+            self.call_from_thread(lambda: self.query_one("#Suces", Label).update("Sorry, that domain isn't supported."))
+            mail = None
+            return
+        except:
+            self.call_from_thread(lambda: self.query_one("#Suces", Label).update("Invalid username or password."))
+            mail = None
+            return
+        address=self._temp_address
+        password=self._temp_password
+        self.call_from_thread(self.exit)
+
+
+    def action_quit(self):
+        sys.exit()
+#------------------EMAIL APP---------------------
 class MailR(textual.app.App):
-    emails = reactive(emails_data, recompose=False)
+
+    emails = reactive([], recompose=False)
     searched_emails = reactive([], recompose=False)
 
-
+    def on_mount(self):
+        self.run_worker(self._refresh_worker,thread=True)
     BINDINGS = [("q", "quit", "Exit"), ("r", "refresh", "Refresh")]
-    theme = "textual-dark"
+    theme = "atom-one-dark"
 
     _refreshing = False
     def action_refresh(self):
@@ -316,6 +395,8 @@ class MailR(textual.app.App):
                                     EmailButton(email)
 
                                 )
+                        if self.emails == []:
+                            yield Label("Emails are loading...")
 #------------------SEND EMAIL TAB------------------------------
             with TabPane(title="Send Email"):
                 with VerticalScroll():
@@ -389,7 +470,7 @@ class MailR(textual.app.App):
         self.query_one("#body", TextArea).clear()
 
 if __name__ == "__main__":
-
+    LoginApp().run()
     MailR().run()
     clear()
 
