@@ -180,10 +180,10 @@ def collect():
     email_ids = msg_data[0].split()
     emails = []
     if len(email_ids) < 500:
-        with ThreadPoolExecutor(max_workers=7) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             emails = list(executor.map(fetch_email, email_ids[::-1]))
     else:
-        with ThreadPoolExecutor(max_workers=7) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             emails = list(executor.map(fetch_email, email_ids[::-1][:500]))
     return emails
 
@@ -293,11 +293,11 @@ class LoginApp(textual.app.App):
         if mail is None:
             with CenterMiddle():
                 yield Label("[italic]Welcome to MailR, please log in to continue[/italic]", id="login_label", )
-                yield LoginInput(placeholder="Username", id="username")
+                yield LoginInput(placeholder="youremail@domain", id="username")
                 yield LoginInput(placeholder="Password", id="password", password=True)
 
                 yield Button("Login", id="login")
-                yield Label("Hint: If you're using 2FA with Google go to https://myaccount.google.com/apppasswords")
+                yield Label("Hint: If you're using 2FA with Google create an app password at https://myaccount.google.com/apppasswords and use that to log in instead")
                 yield Label("", id="Suces")
         else:
             with CenterMiddle():
@@ -367,7 +367,10 @@ class MailR(textual.app.App):
 #--------------------INBOX TAB--------------------------
             with TabPane(title="Inbox"):
                 with VerticalScroll(id="inbox"):
+                    if self.emails == []:
 
+                        yield Label("Emails are loading...", id="loadingding")
+                    else:
                         for email in self.emails:
                             with CompactCollapsible(title=email["Subject"], collapsed=True):
                                 yield CompactHorizontal(
@@ -376,8 +379,7 @@ class MailR(textual.app.App):
                                     EmailButton(email)
 
                                 )
-                        if self.emails == []:
-                            yield Label("Emails are loading...", id="loadingding")
+
 #------------------SEND EMAIL TAB------------------------------
             with TabPane(title="Send Email"):
                 with VerticalScroll():
@@ -419,6 +421,10 @@ class MailR(textual.app.App):
         for msg in self.emails:
             c = CompactCollapsible(CompactHorizontal(EmailLabel(f"From: {msg['From']}\nTo: {msg['To']}"), EmailButton(msg)) , title=msg["Subject"], collapsed=True)
             await scroll.mount(c)
+        try:
+            self.query_one("#loadingding", Label).update("")
+        except:
+            return
 
     async def watch_searched_emails(self):
         try:
