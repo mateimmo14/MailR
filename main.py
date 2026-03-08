@@ -90,7 +90,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "viewer":
     def view_email(email_id, address, password):
 
         data = fetch_email(email_id, address, password)
-        final = f"<b>Subject: {data["Subject"]}</b><br>From: {data['From']}<br>To: {data['To']}<hr><br><br>{data['Content']}"
+        final = f'<p style="background-color: black; color: white;"><b>Subject: {data["Subject"]}</b><br>From: {data['From']}<br>To: {data['To']}<hr><br><br>{data['Content']}</p>'
 
         spawn_text(final, "email")
 
@@ -282,7 +282,7 @@ class SearchBar(Input):
     def on_mount(self):
         self.styles.width = "90%"
 class MailR(textual.app.App):
-    emails = reactive(emails_data, recompose=True)
+    emails = reactive(emails_data, recompose=False)
     searched_emails = reactive([], recompose=False)
 
 
@@ -343,7 +343,17 @@ class MailR(textual.app.App):
 
     def action_search(self):
         self.searched_emails = search(self.query_one("#search_bar", Input).value)
-
+    async def watch_emails(self):
+        try:
+            scroll = self.query_one("#inbox", VerticalScroll)
+        except:
+            return
+        children = list(scroll.query("*"))
+        for child in children:
+            await child.remove()
+        for msg in self.emails:
+            c = CompactCollapsible(CompactHorizontal(EmailLabel(f"From: {msg['From']}\nTo: {msg['To']}"), EmailButton(msg)) , title=msg["Subject"], collapsed=True)
+            await scroll.mount(c)
     def watch_searched_emails(self):
         try:
             scroll = self.query_one("#search-results", VerticalScroll)
