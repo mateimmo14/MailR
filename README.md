@@ -35,7 +35,4 @@ git clone https://github.com/mateimmo14/mailr.git
 cd mailr
 uv run main.py
 ```
-## In work
-- Better login
-- Faster loading with a 500 email limit
-- App being loaded while emails are loading
+
